@@ -9,49 +9,39 @@ TODO: Make a transformer model from scratch. No pre-built transformer layer.
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+# import torch.nn.functional as F
 
-class DecoderOnlyTransformer(nn.Module):
-    def __init__(
-        self,
-        vocab_size,
-        d_model=384,
-        n_layers=6,
-        n_heads=6,
-        d_ff=1536,
-        max_seq_len=512,
-        dropout=0.1,
-        tie_weights=True,
-    ):
+# NOTE: Some transformer layer parameter values for future reference
+
+#         self,
+#         vocab_size=50257, # GPT-2 tokenizer vocab size
+#         d_model=384,
+#         n_layers=6,
+#         n_heads=6,
+#         d_ff=1536,
+#         max_seq_len=512,
+#         dropout=0.1,
+#         tie_weights=True,
+
+
+
+# NOTE: NOT FINALISED ARCHITECTURE!
+class DecoderBlock(nn.Module):
+    def __init__(self, d_model, n_heads, d_ff, dropout=0.1):
         super().__init__()
-        self.token_emb = nn.Embedding(vocab_size, d_model)
-        self.pos_emb = nn.Embedding(max_seq_len, d_model)
-        self.layers = nn.ModuleList([
-            nn.TransformerDecoderLayer(
-                d_model=d_model,
-                nhead=n_heads,
-                dim_feedforward=d_ff,
-                dropout=dropout,
-                activation='gelu',
-                batch_first=True,
-            )
-            for _ in range(n_layers)
-        ])
-        self.ln_f = nn.LayerNorm(d_model)
-        self.head = nn.Linear(d_model, vocab_size, bias=False)
-        if tie_weights:
-            self.head.weight = self.token_emb.weight
+        self.self_attn = nn.MultiheadAttention(d_model, n_heads, dropout=dropout, batch_first=True)
+        self.ln1 = nn.LayerNorm(d_model)
+        self.ff = nn.Sequential(
+            nn.Linear(d_model, d_ff),
+            nn.GELU(),
+            nn.Linear(d_ff, d_model),
+            nn.Dropout(dropout)
+        )
+        self.ln2 = nn.LayerNorm(d_model)
 
-    def forward(self, input_ids):
-        B, T = input_ids.size()
-        positions = torch.arange(0, T, device=input_ids.device).unsqueeze(0)
-        x = self.token_emb(input_ids) + self.pos_emb(positions)
-        tgt_mask = nn.Transformer.generate_square_subsequent_mask(T).to(input_ids.device)
-        for layer in self.layers:
-            x = layer(x, memory=None, tgt_mask=tgt_mask)
-        x = self.ln_f(x)
-        logits = self.head(x)
-        return logits
-
-# Example usage:
-# model = DecoderOnlyTransformer(vocab_size=50257)
+    def forward(self, x, attn_mask=None):
+        attn_output, _ = self.self_attn(x, x, x, attn_mask=attn_mask)
+        x = self.ln1(x + attn_output)
+        ff_output = self.ff(x)
+        x = self.ln2(x + ff_output)
+        return x
