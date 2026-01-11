@@ -12,4 +12,4 @@ import torch.nn as nn
 
 # NOTE: Maybe be unneccessary but is a good placeholder for future customizations.
 # THIS IS THE ATTENTION IS ALL YOU NEED PAPER IMPLEMENTATION
-TransformerDecoderLayer = nn.TransformerDecoderLayer
+TransformerDecoderLayer = nn.TransformerDecoderLayer()
