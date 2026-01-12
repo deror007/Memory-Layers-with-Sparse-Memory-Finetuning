@@ -1,1 +1,2 @@
-src/tokenizer_dir/*
+tokenizer_dir/*
+data_dir/*

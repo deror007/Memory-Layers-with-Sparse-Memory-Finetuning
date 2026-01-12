@@ -1,7 +1,7 @@
 from transformers import GPT2TokenizerFast
 
-save_dir ="./src/tokenizer_dir"
-
+save_dir ="./tokenizer_dir"
+s
 tokenizer = GPT2TokenizerFast.from_pretrained(save_dir)
 tokenizer.save_pretrained(save_dir)
 

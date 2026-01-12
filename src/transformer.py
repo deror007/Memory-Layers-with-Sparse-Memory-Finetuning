@@ -9,7 +9,7 @@ TODO: Make a transformer model from scratch. No pre-built transformer layer.
 
 import torch
 import torch.nn as nn
-# import torch.nn.functional as F
+
 
 # NOTE: Some transformer layer parameter values for future reference
 
