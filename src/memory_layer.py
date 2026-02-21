@@ -1,3 +1,6 @@
+import numpy as np
+import math
+
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
@@ -15,8 +18,9 @@ class MemoryPlusLayer(nn.Module):
         self.value_dim = d_model # <-- NOTE: May experiment with this value, as it may affect performance and memory usage.
         
         # Total memory_slots = |C| * |C'|. Sub-key matrices have sqrt(memory_slots) rows.
-        self.num_subkeys = int(torch.sqrt(memory_slots))
-        assert self.num_subkeys ** 2 == memory_slots, "memory_slots must be a perfect square (e.g., 1024^2)"
+        self.num_subkeys = math.isqrt(memory_slots)
+        assert self.num_subkeys ** 2 == memory_slots, f"memory_slots (n = {memory_slots}) must be a perfect square."
+
 
         # Query MLP
         self.query = nn.Sequential(
@@ -50,7 +54,7 @@ class MemoryPlusLayer(nn.Module):
         """
         NOTE: This is a technique used to stabilize training and improve convergence in transformer models. 
         """
-        self.qk_norm = nn.RMSNorm() 
+        self.qk_norm = nn.RMSNorm(self.subkey_dim) 
         
         # Top-K Selection
         """

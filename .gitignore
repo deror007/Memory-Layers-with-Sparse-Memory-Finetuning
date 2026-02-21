@@ -1,3 +1,4 @@
 tokenizer_dir/*
 data_dir/*
 models_dir/*
+src/__pycache__/*
