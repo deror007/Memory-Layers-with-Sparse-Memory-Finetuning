@@ -82,8 +82,8 @@ class MemoryPlusLayer(nn.Module):
         # 5. Retrieve Values and Aggregate 
         s = self.softmax(top_k_scores) 
 
-        # 6. Gather Values and Aggregate
-        # NOTE: Not sure if this is correct. I know embedding-bag is not efficient for large memory slots. 
+        # 6. Gather Values and Aggregate: NOTE: Using EmbeddingBag! 
+        # TODO: Make CUDA kernel to quicken EmbeddingBag solution
         flat_indices = top_k_indices.view(-1, self.top_k)
         flat_weights = s.view(-1, self.top_k)
         y_flat = F.embedding_bag(flat_indices, self.values, per_sample_weights=flat_weights, mode='sum')
