@@ -42,7 +42,7 @@ def profile_model_performance(model, device, name="Model"):
             loss.backward()
             
     # Sorted by CUDA time if available, else CPU time
-    sort_by = "cuda_time_total" if torch.cuda.is_available() else "cpu_time_total"
+    sort_by = "gpu_time_total" if torch.cuda.is_available() else "cpu_time_total"
     print(prof.key_averages().table(sort_by=sort_by, row_limit=10))
 
 def train_epoch(model, loader, criterion, optimizer, device):
@@ -80,8 +80,8 @@ def run_comparison(epochs=5):
     # Detect device (Note: MPS for Mac is an option, but profiler support varies)
     if torch.cuda.is_available():
         device = torch.device("cuda")
-    # elif torch.backends.mps.is_built(): NOTE: Need to upgrade macOS 14+
-    #     device = torch.device("mps")
+    elif torch.backends.mps.is_built(): #NOTE: Need to upgrade macOS 14+
+        device = torch.device("mps")
     else:
         device = torch.device("cpu")
         
@@ -109,11 +109,14 @@ def run_comparison(epochs=5):
     # profile_model_performance(dense_model, device, name="Dense Baseline")
     # profile_model_performance(memory_model, device, name="Memory+ Adapter")
     
-    """VERY IMPORTANT NOTE: Base model is 17x faster than Memory+ (1024**2 memory slots) ViT!!!! 
+    """VERY IMPORTANT NOTE: 
+    
+    Base model is 17x faster than Memory+ (1024**2 memory slots) ViT!!!! 
     NEED CUSTOM KERNEL FOR EMBEDDINGBAG SOLUTION TO SPEED THIS UP, 
     AS THIS IS THE BOTTLENECK IN THE MEMORY LAYER.
 
     Hoever found memory slot size 256**2 to be near performance of baseline!
+    
     """
     # quit()
     
