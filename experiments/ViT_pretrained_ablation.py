@@ -102,13 +102,21 @@ def run_comparison(epochs=5):
     
     memory_model = timm.create_model('vit_tiny_patch16_224', pretrained=True, num_classes=100, cache_dir = "./models_dir").to(device)
     d_model = memory_model.embed_dim
-    memory_slots = 1024**2 
+    memory_slots = 256**2 
     memory_model.blocks[6].mlp = MemoryPlusLayer(d_model=d_model, memory_slots=memory_slots).to(device)
 
-    # --- Profile first! ---
-    profile_model_performance(dense_model, device, name="Dense Baseline")
-    profile_model_performance(memory_model, device, name="Memory+ Adapter")
+    # PROFILE MODELS BEFORE TRAINING TO SEE MEMORY/FLOP TRADEOFFS
+    # profile_model_performance(dense_model, device, name="Dense Baseline")
+    # profile_model_performance(memory_model, device, name="Memory+ Adapter")
+    
+    """VERY IMPORTANT NOTE: Base model is 17x faster than Memory+ (1024**2 memory slots) ViT!!!! 
+    NEED CUSTOM KERNEL FOR EMBEDDINGBAG SOLUTION TO SPEED THIS UP, 
+    AS THIS IS THE BOTTLENECK IN THE MEMORY LAYER.
 
+    Hoever found memory slot size 256**2 to be near performance of baseline!
+    """
+    # quit()
+    
     # Fixed keys to match your storage logic
     results = {'dense': {'val_loss': [], 'val_acc': []}, 'memory': {'val_loss': [], 'val_acc': []}}
     
@@ -118,6 +126,7 @@ def run_comparison(epochs=5):
         criterion = nn.CrossEntropyLoss()
         
         for epoch in range(epochs):
+            print(f"Epoch {epoch+1}/{epochs}")
             train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
             val_loss, val_acc = validate(model, test_loader, criterion, device)
             
@@ -126,7 +135,17 @@ def run_comparison(epochs=5):
             print(f"Epoch {epoch+1}: Val Acc {val_acc:.2f}%")
 
     # Plotting code remains the same...
+    # 5. Plotting Accuracy
+    plt.figure(figsize=(8, 5))
+    plt.plot(results['dense']['acc'], label='Dense Baseline (Pre-trained ViT)')
+    plt.plot(results['memory']['acc'], label='Memory+ Adapter ViT')
+    plt.title('CIFAR-100 Validation Accuracy')
+    plt.ylabel('Accuracy (%)')
+    plt.xlabel('Epoch')
+    plt.legend()
+    plt.grid(True)
     plt.show()
+
 
 if __name__ == "__main__":
     run_comparison()
