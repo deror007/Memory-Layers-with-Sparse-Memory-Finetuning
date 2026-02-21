@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+import torch.nn.functional as F
 
 class MemoryPlusLayer(nn.Module):
 
@@ -64,22 +65,34 @@ class MemoryPlusLayer(nn.Module):
     def lookup_memory(self, query):
             # TODO: Compute Product Key Mechanism and retrieval
 
-            k1 = self.subkey_one()
-            k1 = self.qk_norm(k1)
+            # 1. Apply normalisation for cosine similarity style lookup
+            k1 = self.qk_norm(self.subkey_one)
+            k2 = self.qk_norm(self.subkey_two)
 
-            k2 = self.subkey_two()
-            k2 = self.qk_norm(k2)
+            # 2. Get similarity subkey scores with query
+            sim_scores_1 = query @ k1.T
+            sim_scores_2  = query @ k2.T
 
-            k1q = query @ k1.T
-            k2q = query @ k2.T
+            # NOTE: Which should I use??
+            all_scores = sim_scores_1.unsqueeze(-1) + sim_scores_2.unsqueeze(-2)
 
-            kq = k1q + k2q
+            # 3. Cartesian Product Search:
+            all_scores = all_scores.view(*all_scores.shape[:-2], -1) 
+            
+            # 4. Select the final top-k combinations
+            top_k_scores, top_k_indices = torch.topk(all_scores, self.top_k, dim=-1)
+            
+            # 5. Retrieve Values and Aggregate 
+            s = self.softmax(top_k_scores) 
 
-                # TODO: Top-k over kq
-
-                # TODO: Softmax over top-k kq = s
-
-                # TODO: s @ values of top-k = y
+            # 6. Gather Values and Aggregate
+            # NOTE: Not sure if this is correct. I know embeddingbag is not efficient for large sizes. 
+            flat_indices = top_k_indices.view(-1, self.top_k)
+            flat_weights = s.view(-1, self.top_k)
+            y_flat = F.embedding_bag(flat_indices, self.values, per_sample_weights=flat_weights, mode='sum')
+            
+            
+            return y_flat.view(*query.shape[:-1], self.value_dim)
 
     def forward(self, x):
 
@@ -92,6 +105,7 @@ class MemoryPlusLayer(nn.Module):
         m_plus = y * m_plus
         m_plus = self.W2(m_plus)
 
+        return m_plus
 
        
 class gated_memory_layer(nn.Module):
