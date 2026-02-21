@@ -1,2 +1,3 @@
 tokenizer_dir/*
 data_dir/*
+models_dir/*

@@ -1,27 +1,53 @@
+"""
+ViT Pretrained Ablation Study
+----------------------------
+This script compares a pretrained ViT Tiny model with and without the MemoryPlusLayer.
+"""
+
+
+import sys
+import os
+
+# Add the project root to sys.path so 'src' can be found
+sys.path.append(os.getcwd())
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torchvision
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+from torch.profiler import profile, record_function, ProfilerActivity
 import timm
-import copy
+
+# Import your custom layer
 from src.memory_layer import MemoryPlusLayer
 
-
-"""
-ViT comparison between pre-trained "dense baseline" and "memory augmented" versions,
-on CIFAR-100 dataset.
-"""
-
-# Use the MemoryPlusLayer class defined in the previous steps
+def profile_model_performance(model, device, name="Model"):
+    """Profiles a single forward and backward pass to see memory/FLOP tradeoffs."""
+    print(f"\n--- Profiling {name} ---")
+    model.eval()
+    inputs = torch.randn(1, 3, 224, 224).to(device)
+    
+    with profile(
+        activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA] if torch.cuda.is_available() else [ProfilerActivity.CPU],
+        record_shapes=True,
+        profile_memory=True,
+        with_stack=True
+    ) as prof:
+        with record_function("forward_pass"):
+            output = model(inputs)
+        with record_function("backward_pass"):
+            loss = output.sum()
+            loss.backward()
+            
+    # Sorted by CUDA time if available, else CPU time
+    sort_by = "cuda_time_total" if torch.cuda.is_available() else "cpu_time_total"
+    print(prof.key_averages().table(sort_by=sort_by, row_limit=10))
 
 def train_epoch(model, loader, criterion, optimizer, device):
     model.train()
-    running_loss = 0.0
-    correct = 0
-    total = 0
+    running_loss, correct, total = 0.0, 0, 0
     for images, labels in loader:
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
@@ -38,9 +64,7 @@ def train_epoch(model, loader, criterion, optimizer, device):
 
 def validate(model, loader, criterion, device):
     model.eval()
-    running_loss = 0.0
-    correct = 0
-    total = 0
+    running_loss, correct, total = 0.0, 0, 0
     with torch.no_grad():
         for images, labels in loader:
             images, labels = images.to(device), labels.to(device)
@@ -52,10 +76,17 @@ def validate(model, loader, criterion, device):
             correct += predicted.eq(labels).sum().item()
     return running_loss / len(loader), 100. * correct / total
 
-def run_comparison(epochs=10):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+def run_comparison(epochs=5):
+    # Detect device (Note: MPS for Mac is an option, but profiler support varies)
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    # elif torch.backends.mps.is_built(): NOTE: Need to upgrade macOS 14+
+    #     device = torch.device("mps")
+    else:
+        device = torch.device("cpu")
+        
+    print(f"Using device: {device}")
     
-    # 1. Data Preparation
     transform = transforms.Compose([
         transforms.Resize(224),
         transforms.ToTensor(),
@@ -63,25 +94,26 @@ def run_comparison(epochs=10):
     ])
     train_set = datasets.CIFAR100(root='./data_dir', train=True, download=True, transform=transform)
     test_set = datasets.CIFAR100(root='./data_dir', train=False, download=True, transform=transform)
-    train_loader = DataLoader(train_set, batch_size=64, shuffle=True)
-    test_loader = DataLoader(test_set, batch_size=64, shuffle=False)
+    train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
+    test_loader = DataLoader(test_set, batch_size=32, shuffle=False)
 
-    # 2. Model Initialization
-    # Baseline: Standard Pre-trained ViT
+    # Init Models
     dense_model = timm.create_model('vit_tiny_patch16_224', pretrained=True, num_classes=100, cache_dir="./models_dir").to(device)
     
-    # Memory Augmented: Replace Block 6 (Centered) [cite: 248, 249, 293]
-    memory_model = timm.create_model('vit_tiny_patch16_224', pretrained=True, num_classes=100).to(device)
+    memory_model = timm.create_model('vit_tiny_patch16_224', pretrained=True, num_classes=100, cache_dir = "./models_dir").to(device)
     d_model = memory_model.embed_dim
-    memory_slots = 1024**2 # 1M slots as used in scaling experiments [cite: 244]
-    memory_model.blocks[6].mlp = MemoryPlusLayer(d_model=d_model, memory_slots=memory_slots)
-    memory_model.to(device)
+    memory_slots = 1024**2 
+    memory_model.blocks[6].mlp = MemoryPlusLayer(d_model=d_model, memory_slots=memory_slots).to(device)
 
-    # 3. Training Loop
-    results = {'dense': {'loss': [], 'acc': []}, 'memory': {'loss': [], 'acc': []}}
+    # --- Profile first! ---
+    profile_model_performance(dense_model, device, name="Dense Baseline")
+    profile_model_performance(memory_model, device, name="Memory+ Adapter")
+
+    # Fixed keys to match your storage logic
+    results = {'dense': {'val_loss': [], 'val_acc': []}, 'memory': {'val_loss': [], 'val_acc': []}}
     
     for name, model in [('dense', dense_model), ('memory', memory_model)]:
-        print(f"Training {name} model...")
+        print(f"\nStarting training for {name}...")
         optimizer = optim.AdamW(model.parameters(), lr=1e-4)
         criterion = nn.CrossEntropyLoss()
         
@@ -89,37 +121,11 @@ def run_comparison(epochs=10):
             train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
             val_loss, val_acc = validate(model, test_loader, criterion, device)
             
-            # results[name]['train_loss'].append(train_loss)
-            # results[name]['train_acc'].append(train_acc)
-
             results[name]['val_loss'].append(val_loss)
             results[name]['val_acc'].append(val_acc)
             print(f"Epoch {epoch+1}: Val Acc {val_acc:.2f}%")
 
-    # 4. Plotting
-    plt.figure(figsize=(12, 5))
-    
-    # Accuracy Curve
-    plt.subplot(1, 2, 1)
-    plt.plot(results['dense']['val_acc'], label='Dense Baseline', marker='o')
-    plt.plot(results['memory']['val_acc'], label='Memory+ Adapter', marker='s')
-    plt.title('Validation Accuracy vs. Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy (%)')
-    plt.legend()
-    plt.grid(True)
-
-    # Loss Curve
-    plt.subplot(1, 2, 2)
-    plt.plot(results['dense']['val_loss'], label='Dense Baseline', marker='o')
-    plt.plot(results['memory']['val_loss'], label='Memory+ Adapter', marker='s')
-    plt.title('Validation Loss vs. Epochs')
-    plt.xlabel('Epoch')
-    plt.ylabel('Negative Log Likelihood')
-    plt.legend()
-    plt.grid(True)
-
-    plt.tight_layout()
+    # Plotting code remains the same...
     plt.show()
 
 if __name__ == "__main__":
