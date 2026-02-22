@@ -4,13 +4,13 @@ ViT Pretrained Ablation Study
 This script compares a pretrained ViT Tiny model with and without the MemoryPlusLayer.
 """
 
-
 import sys
 import os
 
 # Add the project root to sys.path so 'src' can be found
 sys.path.append(os.getcwd())
 
+import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -19,8 +19,6 @@ from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 from torch.profiler import profile, record_function, ProfilerActivity
 import timm
-
-# Import your custom layer
 from src.memory_layer import MemoryPlusLayer
 
 def profile_model_performance(model, device, name="Model"):
@@ -29,8 +27,10 @@ def profile_model_performance(model, device, name="Model"):
     model.eval()
     inputs = torch.randn(1, 3, 224, 224).to(device)
     
+
+     # [ProfilerActivity.CPU, ProfilerActivity.CUDA] if torch.cuda.is_available() else [ProfilerActivity.CPU],
     with profile(
-        activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA] if torch.cuda.is_available() else [ProfilerActivity.CPU],
+        activities = [ProfilerActivity.CPU],  
         record_shapes=True,
         profile_memory=True,
         with_stack=True
@@ -49,6 +49,7 @@ def train_epoch(model, loader, criterion, optimizer, device):
     model.train()
     running_loss, correct, total = 0.0, 0, 0
     for images, labels in loader:
+        print("hi")
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
         outputs = model(images)
@@ -80,7 +81,7 @@ def run_comparison(epochs=5):
     # Detect device (Note: MPS for Mac is an option, but profiler support varies)
     if torch.cuda.is_available():
         device = torch.device("cuda")
-    elif torch.backends.mps.is_built(): #NOTE: Need to upgrade macOS 14+
+    elif torch.backends.mps.is_available(): 
         device = torch.device("mps")
     else:
         device = torch.device("cpu")
@@ -89,18 +90,19 @@ def run_comparison(epochs=5):
     
     transform = transforms.Compose([
         transforms.Resize(224),
+        transforms.Grayscale(num_output_channels=3), 
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
     ])
-    train_set = datasets.CIFAR100(root='./data_dir', train=True, download=True, transform=transform)
-    test_set = datasets.CIFAR100(root='./data_dir', train=False, download=True, transform=transform)
+    train_set = datasets.FashionMNIST(root='./data_dir', train=True, download=True, transform=transform)
+    test_set = datasets.FashionMNIST(root='./data_dir', train=False, download=True, transform=transform)
     train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
     test_loader = DataLoader(test_set, batch_size=32, shuffle=False)
 
     # Init Models
-    dense_model = timm.create_model('vit_tiny_patch16_224', pretrained=True, num_classes=100, cache_dir="./models_dir").to(device)
+    dense_model = timm.create_model('mobilenetv2_100', pretrained=True, num_classes=10, cache_dir="./models_dir").to(device)
     
-    memory_model = timm.create_model('vit_tiny_patch16_224', pretrained=True, num_classes=100, cache_dir = "./models_dir").to(device)
+    memory_model = timm.create_model('mobilenetv2_100', pretrained=True, num_classes=10, cache_dir = "./models_dir").to(device)
     d_model = memory_model.embed_dim
     memory_slots = 256**2 
     memory_model.blocks[6].mlp = MemoryPlusLayer(d_model=d_model, memory_slots=memory_slots).to(device)
@@ -131,14 +133,18 @@ def run_comparison(epochs=5):
         for epoch in range(epochs):
             print(f"Epoch {epoch+1}/{epochs}")
             train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device)
+            print(f"Epoch {epoch+1}: train loss: {train_loss}, train acc: {train_acc}")
             val_loss, val_acc = validate(model, test_loader, criterion, device)
             
             results[name]['val_loss'].append(val_loss)
             results[name]['val_acc'].append(val_acc)
             print(f"Epoch {epoch+1}: Val Acc {val_acc:.2f}%")
 
-    # Plotting code remains the same...
-    # 5. Plotting Accuracy
+    return results
+
+
+# 5. Plotting Accuracy
+def plot_results(results):
     plt.figure(figsize=(8, 5))
     plt.plot(results['dense']['acc'], label='Dense Baseline (Pre-trained ViT)')
     plt.plot(results['memory']['acc'], label='Memory+ Adapter ViT')
@@ -151,4 +157,9 @@ def run_comparison(epochs=5):
 
 
 if __name__ == "__main__":
-    run_comparison()
+
+    start_time = time.time()
+    res = run_comparison()
+    end_time = time.time()
+    plot_results(res)
+    print(f"Run comparison duration: {end_time - start_time:.2f} seconds")
