@@ -22,6 +22,8 @@ import gc
 """
 TODO:
 1. [] Implement Sparse Memory finetuning using Lin et. al (2025) paper.
+    [] Modify this so that only the forward activations from Memory Layer onwards
+        ... gets stored!
 2. [] compare performance to pre-trained baseline model.
 3. [] probably use avalanche for split long-tail classification dataset.
 """
