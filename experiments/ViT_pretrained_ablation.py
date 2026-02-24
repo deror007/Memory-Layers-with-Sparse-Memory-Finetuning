@@ -48,8 +48,8 @@ def profile_model_performance(model, device, name="Model"):
 def train_epoch(model, loader, criterion, optimizer, device):
     model.train()
     running_loss, correct, total = 0.0, 0, 0
+
     for images, labels in loader:
-        print("hi")
         images, labels = images.to(device), labels.to(device)
         optimizer.zero_grad()
         outputs = model(images)
@@ -61,6 +61,7 @@ def train_epoch(model, loader, criterion, optimizer, device):
         _, predicted = outputs.max(1)
         total += labels.size(0)
         correct += predicted.eq(labels).sum().item()
+        
     return running_loss / len(loader), 100. * correct / total
 
 def validate(model, loader, criterion, device):
