@@ -19,6 +19,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
 import gc
+
 """
 TODO:
 1. [] Implement Sparse Memory finetuning using Lin et. al (2025) paper.
@@ -29,12 +30,29 @@ TODO:
 3. [] probably use avalanche for split long-tail classification dataset.
 """
 
+def get_device():
+    # Init Device
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        return torch.device("mps")
+    else:
+        return torch.device("cpu")
+
+  
+
+def load_tiny_vit_memory_model(file_path, tiny_Vit_mem_spec):
+    model = tiny_Vit_mem_spec()
+    model.load_state_dict(torch.load(file_path, weights_only=True))
+    model.eval()
+
+    return model
+
 def prepare_datasets():
     """
     * Pretrained memory+ model got about 82% accuracy. Finetune on incorrect data!
     - [] make an inference run to detect incorrect examples in validation set of the stored base model.
     - [] mark or store misclassified data. 
-    
     """
     pass
 
