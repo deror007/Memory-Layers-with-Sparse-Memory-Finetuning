@@ -19,6 +19,7 @@ import torch.nn.functional as F
 from tqdm import tqdm
 import numpy as np
 import gc
+from torch.utils.data import Dataset, DataLoader, Subset
 
 """
 TODO:
@@ -26,36 +27,82 @@ TODO:
     [] Modify this so that only the forward activations from Memory Layer onwards
         ... gets stored!
     [] Progressive Data-dropout implementation.
-2. [] compare performance to pre-trained baseline model.
-3. [] probably use avalanche for split long-tail classification dataset.
+2. [] create training set from fashion mnist dataset by only including misclasssifications.
+3. [] compare performance to pre-trained baseline model.
+4. [] probably use avalanche for split long-tail classification dataset, and redo finetuning on different classes.
 """
+
+
+def set_seed(seed=42):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
+
 
 def get_device():
     # Init Device
     if torch.cuda.is_available():
+        print("Using CUDA")
         return torch.device("cuda")
     elif torch.backends.mps.is_available():
+        print("Using MPS")
         return torch.device("mps")
     else:
+        print("Using CPU")
         return torch.device("cpu")
 
-  
 
-def load_tiny_vit_memory_model(file_path, tiny_Vit_mem_spec):
-    model = tiny_Vit_mem_spec()
+def create_tiny_vit_memory_model(device):
+    # assuming fashion_mnist is what it was trained on
+    model = timm.create_model('vit_tiny_patch16_224', pretrained=False, num_classes=10, cache_dir = "./models_dir").to(device)
+    d_model = model.embed_dim
+    memory_slots = 256**2
+    model.blocks[6].mlp = MemoryPlusLayer(d_model=d_model, memory_slots=memory_slots).to(device)
+    return model
+
+
+def load_tiny_vit_memory_model(file_path, device):
+    model = create_tiny_vit_memory_model(device)
     model.load_state_dict(torch.load(file_path, weights_only=True))
     model.eval()
 
     return model
 
-def prepare_datasets():
-    """
-    * Pretrained memory+ model got about 82% accuracy. Finetune on incorrect data!
-    - [] make an inference run to detect incorrect examples in validation set of the stored base model.
-    - [] mark or store misclassified data. 
-    """
-    pass
 
+def create_finetune_datasets(model, loader, device):
+    model.eval()
+    misclassified_indices = []
+    correct_indices = []
+    
+    print("Identifying hard examples in validation set...")
+    with torch.no_grad():
+        for i, (images, labels) in enumerate(loader):
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, predicted = outputs.max(1)
+            
+            # Determine which samples in the batch were wrong
+            mask = predicted.ne(labels)
+            
+            # Convert batch-relative indices to global dataset indices
+            batch_start = i * loader.batch_size
+            for j, is_wrong in enumerate(mask):
+                global_idx = batch_start + j
+                if is_wrong:
+                    misclassified_indices.append(global_idx)
+                else:
+                    correct_indices.append(global_idx)
+                    
+    # Create the Subsets
+    # Use the original dataset from the loader
+    dataset = loader.dataset
+    finetune_set = Subset(dataset, misclassified_indices)
+    stable_set = Subset(dataset, correct_indices)
+    
+    print(f"Extraction complete:\n   {len(finetune_set)} misclassified samples found.\n   {len(stable_set)} classified samples found. ")
+    
+    return finetune_set, stable_set
 
 
 def train_epoch(model, loader, criterion, optimizer, device):
@@ -87,6 +134,7 @@ def train_epoch(model, loader, criterion, optimizer, device):
 
     return running_loss / len(loader), 100. * correct / total
 
+
 def validate(model, loader, criterion, device):
     model.eval()
     running_loss, correct, total = 0.0, 0, 0
@@ -101,7 +149,7 @@ def validate(model, loader, criterion, device):
             correct += predicted.eq(labels).sum().item()
     return running_loss / len(loader), 100. * correct / total
 
-def init_model(m_type):
+def init_model(m_type, device):
     if m_type == 'dense':
         model = timm.create_model('vit_tiny_patch16_224', pretrained=False, num_classes=10, cache_dir="./models_dir").to(device)
 
@@ -124,7 +172,6 @@ def run_comparison(train_loader, test_loader, device, epochs=5, total_trials = 3
 
         set_seed(42+t)
 
-
         for name in ['dense', 'memory']:
 
             torch.cuda.empty_cache()
@@ -133,7 +180,7 @@ def run_comparison(train_loader, test_loader, device, epochs=5, total_trials = 3
             print(f"\nStarting training for {name}...")
 
 
-            model = init_model(name)
+            model = init_model(name, get_device())
 
             trial_accs = []
             optimizer = optim.AdamW(model.parameters(), lr=1e-4)
@@ -150,7 +197,6 @@ def run_comparison(train_loader, test_loader, device, epochs=5, total_trials = 3
                 trial_accs.append(val_acc)
 
             results[name]['val_acc'].append(trial_accs)
-
 
 
             end_time = time.time()
