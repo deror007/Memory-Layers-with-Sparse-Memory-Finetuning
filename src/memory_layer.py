@@ -106,9 +106,3 @@ class MemoryPlusLayer(nn.Module):
         m_plus = self.W2(m_plus)
 
         return m_plus
-
-       
-class gated_memory_layer(nn.Module):
-    def __init__(self):
-        super().__init__()
-        pass
