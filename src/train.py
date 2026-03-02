@@ -28,8 +28,10 @@ TODO:
     - [] Modify this so that only the forward activations from Memory Layer onwards gets stored!
     - [] Progressive Data-dropout implementation.
 2. [x] create training set from fashion mnist dataset by only including misclassifications.
-3. [] compare performance to pre-trained baseline memory model.
-4. [] probably use avalanche for split long-tail classification dataset, and redo finetuning on different classes.
+3. [] Get Google Colab!
+4. [] compare performance to pre-trained baseline memory model.
+5. [] probably use avalanche for split long-tail classification dataset, and redo finetuning on different classes.
+
 """
 
 
@@ -146,6 +148,8 @@ def validate(model, loader, criterion, device):
             total += labels.size(0)
             correct += predicted.eq(labels).sum().item()
     return running_loss / len(loader), 100. * correct / total
+
+
 
 def sparse_memory_finetuning(model, train_loader, test_loader, device, epochs, seed):
     # Detect device (Note: MPS for Mac is an option, but profiler support varies)
