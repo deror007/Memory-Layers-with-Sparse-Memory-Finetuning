@@ -23,6 +23,7 @@ class MemoryPlusLayer(nn.Module):
 
 
         # Query MLP
+        # TODO: Potentially need two sub-queries which are dedicated to an individual sub-key!!!!!
         self.query = nn.Sequential(
             nn.Linear(d_model, d_model * 4),
             nn.SiLU(), # <-- Should match whatever the base models FFN activation function is.
@@ -100,6 +101,8 @@ class MemoryPlusLayer(nn.Module):
         q = self.qk_norm(q)
 
         y = self.lookup_memory(q)
+
+        # TODO: Calculate Term-Frequency on batch x
                 
         m_plus = self.silu(self.W1(x))
         m_plus = y * m_plus

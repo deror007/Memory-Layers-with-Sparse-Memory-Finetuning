@@ -151,7 +151,7 @@ def validate(model, loader, criterion, device):
 
 
 
-def sparse_memory_finetuning(model, train_loader, test_loader, device, epochs, seed):
+def train_model(model, train_loader, test_loader, device, epochs, seed):
     # Detect device (Note: MPS for Mac is an option, but profiler support varies)
 
     # print(f"\nStarting training for {name}...")
@@ -179,6 +179,27 @@ def sparse_memory_finetuning(model, train_loader, test_loader, device, epochs, s
     # gc.collect()
     # torch.cuda.empty_cache()
 
-
-
     return model,train_acc, val_acc, speed
+
+def get_pretraining_memory_activations():
+    # TODO: Get frequency (return dictionary) of memory index (key) and frequency (value) of entire pretraining set.
+    pass
+
+def get_tf_idf_memory_ranking():
+    # TODO: Get memory slot accesses of a corpus! I guess re-do pre-training 
+    #  ... but with counting term/memory_slot activations
+
+    # Term frequency: 
+    # (a memory slots frequency of activation) / (Sum of all memory slots activations on the batch)
+
+    # Inverse Document Frequency: 
+    # NOTE: for creating batches of pre-training you could just run through pre-training data at inference and then group them into a batch of certain sequences.
+    #  IDF denominator would then check that a memory slot was active at least once in that batch and then this means we add 1 for this batch.
+    # log(Count of batches in pretraining dataset + 1) / (Count of the memory slot being active across all pretraining batches + 1 )
+
+    # return TF * IDF
+    pass
+
+
+def sparse_memory_finetuning(model, train_loader, test_loader, device, epochs, seed):
+    pass
