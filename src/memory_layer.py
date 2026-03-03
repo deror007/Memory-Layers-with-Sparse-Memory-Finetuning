@@ -23,11 +23,10 @@ class MemoryPlusLayer(nn.Module):
 
 
         # Query MLP
-        # TODO: Potentially need two sub-queries which are dedicated to an individual sub-key!!!!!
         self.query = nn.Sequential(
             nn.Linear(d_model, d_model * 4),
             nn.SiLU(), # <-- Should match whatever the base models FFN activation function is.
-            nn.Linear(d_model * 4, self.subkey_dim)
+            nn.Linear(d_model * 4, self.key_dim)
         )
         
         # Sub-Key Matrix One and Two
@@ -69,13 +68,16 @@ class MemoryPlusLayer(nn.Module):
 
     def lookup_memory(self, query):
 
+        # 0. Get sub-queries by splitting query vector into halves
+        q1, q2 = torch.chunk(query, 2)
+
         # 1. Apply normalisation for cosine similarity style lookup
         k1 = self.qk_norm(self.subkey_one)
         k2 = self.qk_norm(self.subkey_two)
 
         # 2. Get similarity subkey scores with query
-        sim_scores_1 = query @ k1.T
-        sim_scores_2  = query @ k2.T
+        sim_scores_1 = q1 @ k1.T
+        sim_scores_2  = q2 @ k2.T
         all_scores = sim_scores_1.unsqueeze(-1) + sim_scores_2.unsqueeze(-2)
 
         # 3. Cartesian Product Search:
