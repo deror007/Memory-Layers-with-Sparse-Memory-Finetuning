@@ -4,7 +4,7 @@ Take a memory layer adapted model, and finetune it using the
 SMF approach via Lin et al. (2025).
 """
 
-from src.memory_layer import MemoryPlusLayer
+from memory_layer import MemoryPlusLayer
 import time
 import torch
 import torch.nn as nn
@@ -183,21 +183,27 @@ def train_model(model, train_loader, test_loader, device, epochs, seed):
 
 def get_pretraining_memory_activations():
     # TODO: Get frequency (return dictionary) of memory index (key) and frequency (value) of entire pretraining set.
+    
+    """
+    TODO: Make forward pass on pretraining dataset, but count memory slot frequencies
+    """
     pass
 
+
+
 def get_tf_idf_memory_ranking():
-    # TODO: Get memory slot accesses of a corpus! I guess re-do pre-training 
+    "TODO: Get memory slot accesses of a corpus! I guess re-do pre-training "
     #  ... but with counting term/memory_slot activations
 
-    # Term frequency: 
+    "Term frequency:"
     # (a memory slots frequency of activation) / (Sum of all memory slots activations on the batch)
 
-    # Inverse Document Frequency: 
+    "Inverse Document Frequency:" 
     # NOTE: for creating batches of pre-training you could just run through pre-training data at inference and then group them into a batch of certain sequences.
     #  IDF denominator would then check that a memory slot was active at least once in that batch and then this means we add 1 for this batch.
     # log(Count of batches in pretraining dataset + 1) / (Count of the memory slot being active across all pretraining batches + 1 )
 
-    # return TF * IDF
+    "return TF * IDF"
     pass
 
 
