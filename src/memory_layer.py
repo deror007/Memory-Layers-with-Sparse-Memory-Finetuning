@@ -73,7 +73,7 @@ class MemoryPlusLayer(nn.Module):
 
         # 1. Apply qk-normalisation for cosine similarity style lookup
         q1 = self.qk_norm(q1)
-        q1 = self.qk_norm(q1)
+        q2 = self.qk_norm(q2)
 
         k1 = self.qk_norm(self.subkey_one)
         k2 = self.qk_norm(self.subkey_two)

@@ -28,7 +28,7 @@ TODO:
     - [] Modify this so that only the forward activations from Memory Layer onwards gets stored!
     - [] Progressive Data-dropout implementation.
 2. [x] create training set from fashion mnist dataset by only including misclassifications.
-3. [x] Get Google Colab! [Got local gpu to work instead].
+3. [] Get Google Colab for research and use vit_tiny_ablation new code. Though I got MPS to work as well.
 4. [] compare performance to pre-trained baseline memory model.
 5. [] probably use avalanche for split long-tail classification dataset, and redo finetuning on different classes.
 """
