@@ -69,7 +69,7 @@ class MemoryPlusLayer(nn.Module):
     def lookup_memory(self, query):
 
         # 0. Get sub-queries by splitting query vector into halves
-        q1, q2 = torch.chunk(query, 2)
+        q1, q2 = torch.chunk(query, 2, -1)
 
         # 1. Apply qk-normalisation for cosine similarity style lookup
         q1 = self.qk_norm(q1)
