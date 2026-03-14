@@ -32,7 +32,7 @@ class MemoryPlusLayer(nn.Module):
         # Sub-Key Matrix One and Two
         # NOTE: Don't use nn.linear here, due to sparse key retrieval mechanism in forward pass.
         self.subkey_one = nn.Parameter(torch.empty(self.num_subkeys, self.subkey_dim, dtype=torch.float32))
-        self.subkey_two = nn.Parameter(torch.empty(self.num_subkeys, self.subkey_dim, dtype=torch.float32))
+        self.subkey_two = nn.Parameter(torch.empty(self.num_subkeys, self.subkey3_dim, dtype=torch.float32))
         nn.init.uniform_(self.subkey_one, a = -1, b = 1)
         nn.init.uniform_(self.subkey_two, a = -1, b = 1)
 
